@@ -4,7 +4,7 @@ The goal of this project is to create a simple, complete and low price node that
 
 ## Instructions
 
-## Hardware
+### Hardware
  * Get a The Things UNO
  * Get a [Adafruit Silicon MEMS Microphone](https://www.adafruit.com/products/2716)
  * Connect Vin (MEMS mic) to 3v3 (Arduino), GND (MEMS mic) to GND (Arduino) and Vin (MEMS mic) to A0 (Arduino)
