@@ -18,7 +18,7 @@ The goal of this project is to create a simple, complete and low price node that
         $ git clone git@github.com:matthiaszimmermann/ttn_zh_noise.git
 
  * Open the Arduino IDE and then open the [noise monitor sketch](noise_monitor/noise_monitor.ino).
- * Open the `LoRa.cpp` file and assign a new device address to your device on the line `Serial1.write("mac set devaddr 5A480101\r\n");`. For TTN Zurich, please use the address space 5A4801xx (i.e. replace `xx` with an hex value) <sup>(1)</sup>.
+ * Open the `LoRa.cpp` file and assign a new device address to your device on the line `Serial1.write("mac set devaddr 5A480101\r\n");`. For TTN Zurich, please use the address space 5A4801xx (i.e. replace `xx` with an hex value, eg. `03`).
  * Compile and upload the code.
 
 ## Running the Sketch
@@ -32,6 +32,19 @@ Sending: 'info': 'ttn-zh-noise', 'version': 'v0.1', 'acc': '4.32', 'max': '3'
 RN2483 status:
 mac_tx_ok
 ok
+```
+
+Using the [REST client](http://thethingsnetwork.org/api/v0/nodes/5A480103/), the received packages then look like this:
+
+```
+{
+    "time": "2015-12-15T16:47:40.123Z",
+    "data_plain": "'info': 'ttn-zh-noise', 'version': 'v0.1', 'acc': '2.04', 'max': '4'",
+    "gateway_eui": "FFFEB827EBA00A83",
+    "data": "J2luZm8nOiAndHRuLXpoLW5vaXNlJywgJ3ZlcnNpb24nOiAndjAuMScsICdhY2MnOiAnMi4wNCcsICdtYXgnOiAnNCc=",
+    "data_raw": "QAMBSFoABQABDpkrNkdj/GzUI8glcD0xnxyNigQnQVdEgN8ZCeWk6pR76m6sU67uLHgZpoUJbpU1O19KOCIFOAF3O2m+EynMab09mDcwZKAf",
+    "node_eui": "5A480103"
+}
 ```
 
 ## Credits
