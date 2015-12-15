@@ -4,6 +4,13 @@ The goal of this project is to create a simple, complete and low price node that
 
 ## Instructions
 
+## Hardware
+ * Get a The Things UNO
+ * Get a [Adafruit Silicon MEMS Microphone](https://www.adafruit.com/products/2716)
+ * Connect Vin (MEMS mic) to 3v3 (Arduino), GND (MEMS mic) to GND (Arduino) and Vin (MEMS mic) to A0 (Arduino)
+ * Connect the Things UNO with your computer
+
+### Software
  * [Install Arduino IDE](https://www.arduino.cc/en/Main/Software) and connect your The Things UNO to your computer.
  * Ensure that in the IDE 'Tools -> Board' is set to 'Arduino Leonardo' (otherwise compilation will fail, as it will not recognize Serial1)
  * Clone this repository:
