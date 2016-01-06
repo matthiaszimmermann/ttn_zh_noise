@@ -6,148 +6,189 @@
 // version string
 #define VERSION "'version': 'v0.1'"
 
-// microphone input pin
-#define PIN_AUDIO A0
+// true: print debug info on serial
+// false: don't print debug info to serial
+#define PRINT_DEBUG false
 
-// number of loops for inner time window (measuring min/max mic levels)
-#define CNT_MAX_INNER 2000
+// analog input noise pin
+#define PIN_NOISE A0
 
-// number of loops fo outer time window (accumulated mic level differences ~= noise)
-#define CNT_MAX_OUTER 30
+// size of inner loop to get min max levels
+#define CNT_MAX 2000
 
-// measurements for inner time frame
-// min and max volt levels
-int val_min = 2000;
-int val_max = 0;
-int cnt_inner = 0;
+// number of loops to acuumulate noise sampling
+#define CNT_ACC 350
 
-// measurements for outer time frame
-// accumulated differences/max/min over inner time frame
-// accumulated difference seems to correspond nicely to accumulated noise
-int diff_sum = 0;
-int diff_min = 100;
-int diff_max = 0;
-int cnt_outer = 0;
+// gobal vars for sound level
+int cnt, val_min, val_max, diff;
 
-// accumulated and normalized noise
-// variables to measure time window for normalization
-double noise_acc_norm;
-unsigned long time_since;
-unsigned long time_now;
-unsigned long time_delta;
+// global vars for accumulated noise measures
+int acc_cnt, acc_sum, acc_max;
+long acc_start;
 
-LoRa LoRa_Lib;
+// the lora lib
+LoRa LoraLib;
 
 void setup() {
-  Serial.begin(9600);   // serial monitor
-  Serial1.begin(57600); // lora communication serial
+  Serial.begin(9600);
+  pinMode(13, OUTPUT);
   
-  initLora();
-  initMeasuredData();
+  initLora();  
+  initSensor();
+  resetSensorValues();
+  resetNoiseLevelValues();
 }
 
 void loop() {  
-  updateInnerValues(analogRead(PIN_AUDIO)); // read the input pin (dc pin of spw2430)
+  // update noise level vars from sensor value
+  updateSensorValues(analogRead(PIN_NOISE));
+  
+  // update/print current noise level
+  if(cnt == CNT_MAX) {
+    diff = smoothDiff(val_max - val_min);
+    printDiff(diff);
+    updateNoiseLevelValues(diff);
+    resetSensorValues();
 
-  // check if inner time frame is completed
-  if(cnt_inner == CNT_MAX_INNER) {
-    updateOuterValues(val_min, val_max);
-
-    // check if outer time frame is completed
-    if(cnt_outer == CNT_MAX_OUTER) {
-      updateMeasuredData();
-      printDebugInfo();
-      sendLoRaData();
-      
-      resetOuterValues();
+    // print/send noise data for last time window
+    if(acc_cnt == CNT_ACC) {
+      printNoiseLevel();
+      sendLora();
+      resetNoiseLevelValues();
     }
-    
-    resetInnerValues();
   }
 }
 
+// configure lora module
 void initLora() {
+  // serial to communicate with lora chip
+  Serial1.begin(57600); 
   delay(3000);
-  Serial.println("--------------------------");
-  Serial.println("Configuring LoRa module...");
-  LoRa_Lib.LoRaConfig();
-  Serial.println("LoRa module ready.");
-  Serial.println("--------------------------");
+
+  if(PRINT_DEBUG) {
+    Serial.println("--------------------------");
+    Serial.println("Configuring LoRa module...");
+  }
+  
+  LoraLib.LoRaConfig();
+  
+  if(PRINT_DEBUG) {
+    Serial.println("LoRa module ready.");
+    Serial.println("--------------------------");
+  }
 }
 
-void initMeasuredData() {
-  time_since = millis();
-  time_now = 0;
-  time_delta = 0;
-  noise_acc_norm = 0.0;
+void sendLora() {
+  LoraLib.LoRaSendAndReceive(getJson());
 }
 
-void updateMeasuredData() {
-  time_now = millis();
-  time_delta = time_now - time_since;
-  noise_acc_norm = 1000.0 * diff_sum / time_delta;
+// assemble data package for lora
+String getJson() {
+  String s = String(NODE_INFO) + ", ";
+  s += String(VERSION) + ", ";
+  s += "'acc': '" + String(getNoiseLevelNormalized()) + "', ";
+  s += "'max': '" + String(acc_max) + "'";
+  return s;
 }
 
-void resetInnerValues() {
-  cnt_inner = 0;
+// get normalizes accumulated noise
+double getNoiseLevelNormalized() {
+  return acc_sum / ((millis() - acc_start) / 1000.0);
+}
+
+// set reference to internal to increase sensitivity
+void initSensor() {
+  analogReference(INTERNAL);
+}
+
+void resetSensorValues() {
+  cnt = 0;
   val_min = 2000;
   val_max = 0;
+  diff = 0;
 }
 
-void updateInnerValues(int val) {
+void resetNoiseLevelValues() {
+  acc_cnt = 0;
+  acc_sum = 0;
+  acc_max = 0;
+}
+
+void updateSensorValues(int val) {
   if (val < val_min) { val_min = val; }
   if (val > val_max) { val_max = val; }
   
-  cnt_inner++;
+  cnt++;
 }
 
-void resetOuterValues() {
-  cnt_outer = 0;
-  diff_sum = 0;
-  diff_min = 100;
-  diff_max = 0;
-
-  // reset after sending data via lora
-  time_since = time_now;  
-}
-
-void updateOuterValues(int vmin, int vmax) {
-  int diff = vmax - vmin;
-
-  diff_sum += diff;
-  if(diff < diff_min) { diff_min = diff; }
-  if(diff > diff_max) { diff_max = diff; }
+void updateNoiseLevelValues(int d) {
+  if(acc_cnt == 0) {
+    acc_start = millis();
+  }
   
-  cnt_outer++;
+  if (diff > acc_max) { 
+    acc_max = d; 
+  }
+
+  acc_sum += d;
+  acc_cnt++;
 }
+
+// diff values of 2 and below don't seem to be meaningful
+int smoothDiff(int d) {
+  if(d >= 2) {
+    return d - 2;
+  }
   
-void sendLoRaData() {
-  LoRa_Lib.LoRaSendAndReceive(getJsonData());
+  if(d >= 1) {
+    return d - 1;
+  }
+
+  return d;
 }
 
-void printDebugInfo() {
-  Serial.println("--------------------------");
-  Serial.print("sum: ");
-  Serial.print(diff_sum);
-  Serial.print(" time_delta: ");
-  Serial.print(time_delta);
-  Serial.print(" noise_acc_norm: ");
-  Serial.print(noise_acc_norm);
-  Serial.print(" min: ");
-  Serial.print(diff_min);
-  Serial.print(" max: ");
-  Serial.print(diff_max);
-  Serial.print(" jsonData: ");
-  Serial.print(getJsonData());
-  Serial.println();
-  Serial.println("--------------------------");
+// print current noise level
+void printDiff(int d) {
+  if(PRINT_DEBUG) {
+    Serial.print(getDiffString(d));   
+    Serial.print(" ");   
+    Serial.print(d);   
+    Serial.print(" (min ");   
+    Serial.print(val_min);   
+    Serial.print(" max ");   
+    Serial.print(val_max);   
+    Serial.println(")");
+  }
 }
 
-String getJsonData() {
-  String s = String(NODE_INFO) + ", ";
-  s += String(VERSION) + ", ";
-  s += "'acc': '" + String(noise_acc_norm) + "', ";
-  s += "'max': '" + String(diff_max) + "'";
-  return s;
+// converts diff value into a string for printing on serial
+String getDiffString(int d) {
+  int noise = d / 2;
+  int pos = 1;
+  String bar;
+
+  if(diff == 0) { bar = "."; }
+  else          { bar = "#"; }
+  
+  for(;pos < 40; pos++) {    
+    if(pos <= noise) { bar += "#"; }
+    else             { bar += " "; }
+  }
+
+  return bar;
+}
+
+// print accumulated noise info
+void printNoiseLevel() {
+  if(PRINT_DEBUG) {
+    Serial.print("--- noise ");   
+    Serial.print(getNoiseLevelNormalized());
+    Serial.print(" (sum ");   
+    Serial.print(acc_sum);   
+    Serial.print(" max ");   
+    Serial.print(acc_max);   
+    Serial.print(") json ");
+    Serial.println(getJson());
+  }
 }
 
