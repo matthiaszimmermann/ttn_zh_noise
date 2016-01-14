@@ -47,5 +47,7 @@ Using the [REST client](http://thethingsnetwork.org/api/v0/nodes/5A480103/), the
 }
 ```
 
+Using a MQTT client, connect to this broker uri ```tcp://croft.thethings.girovito.nl:1883``` and subscribe to ```gateways/<eui>/status``` or ```nodes/<eui>/packets``` and check for messages coming in (see [this forum post](http://forum.thethingsnetwork.org/t/mqtt-and-node-red-now-available-in-demo-environment/604) for further information regarding thethingsnetwork mqtt broker.
+
 ## Credits
 Based on https://github.com/gonzalocasas/thethings-uno which in turn is based on https://github.com/thingkit-ee/things_uno
