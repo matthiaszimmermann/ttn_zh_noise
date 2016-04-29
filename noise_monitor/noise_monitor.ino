@@ -18,7 +18,7 @@
 #define CNT_MAX 2000
 
 // number of samples used to calibrate min and max
-#define CALIBRATION_SAMPLES 50
+#define CALIBRATION_SAMPLES 30
 
 // size of diff histo for calibration
 #define CALIBRATION_HISTO_SIZE 10
@@ -47,7 +47,7 @@ LoRa LoraLib;
 int cnt, val_min, val_max, diff;
 
 // global vars for accumulated noise measures
-int acc_max, acc_sum, acc_cnt, samples_cnt;
+int acc_max, acc_sum, acc_cnt, samples_cnt, calibration_cnt;
 long acc_start;
 
 // global vars for calibration
@@ -208,7 +208,14 @@ void initSensor() {
   diff_min = 0;
 
   // reset number of samples sent
-  samples_cnt = 0;  
+  samples_cnt = 0;
+
+  // reset calibration sample count
+  calibration_cnt = 0;
+  
+  for (int i = 0; i < CALIBRATION_HISTO_SIZE; i++) {
+    calibration_histo[i] = 0;
+  }
 }
 
 // reset variables for raw noise measurments
@@ -224,6 +231,7 @@ void resetNoiseLevelValues() {
   acc_cnt = 0;
   acc_sum = 0;
   acc_max = 0;
+  acc_start = millis();
 }
 
 // update variables for raw noise measurments
@@ -239,54 +247,38 @@ void updateRawSensorValues(int val) {
 }
 
 // update calibration of noise level differences
+// assumtion is that most frequently observed difference 
+// between max and min value represents silence.
 void updateNoiseLevelCalibration() {
 
-  // init calibration histo
-  if (acc_cnt == 0) {
-    for (int i = 0; i < CALIBRATION_HISTO_SIZE; i++) {
-      calibration_histo[i] = 0;
+  // continuous sampling
+  calibration_diff[calibration_cnt++ % CALIBRATION_SAMPLES] = val_max - val_min;
+  
+  if(calibration_cnt == CALIBRATION_SAMPLES) {
+    calibration_cnt = 0;
+  }
+  
+  // update histogram for calibration
+  for (int i = 0; i < CALIBRATION_SAMPLES; i++) {
+    if (calibration_diff[i] < CALIBRATION_HISTO_SIZE) {
+      calibration_histo[calibration_diff[i]]++;
     }
   }
 
-  // collecting samples for calibration
-  if (acc_cnt < CALIBRATION_SAMPLES) {
-    calibration_diff[acc_cnt] = val_max - val_min;
-  }
-  // computing current calibration
-  else if (acc_cnt == CALIBRATION_SAMPLES) {
-    // update histogram for calibration
-    for (int i = 0; i < CALIBRATION_SAMPLES; i++) {
-      if (calibration_diff[i] < CALIBRATION_HISTO_SIZE) {
-        calibration_histo[calibration_diff[i]]++;
-      }
-    }
+  // reset diff_min
+  diff_min = 0;
 
-    // reset diff_min
-    diff_min = 0;
-
-    // find best diff_min.
-    // assumpion: most frequent noise diff value represents silence
-    for (int i = 1; i < CALIBRATION_HISTO_SIZE; i++) {
-      if (calibration_histo[i] > calibration_histo[diff_min]) {
-        diff_min = i;
-      }
-    }
-
-    if (PRINT_DEBUG) {
-      Serial.println(LINE);
-      Serial.print("new calibration difference: ");
-      Serial.println(diff_min);
-      Serial.println(LINE);
+  // find best diff_min.
+  // assumpion: most frequent noise diff value represents silence
+  for (int i = 1; i < CALIBRATION_HISTO_SIZE; i++) {
+    if (calibration_histo[i] > calibration_histo[diff_min]) {
+      diff_min = i;
     }
   }
 }
 
 // update variables for accumulated noise measurments
 void updateNoiseLevelValues(int d) {
-  if (acc_cnt == 0) {
-    acc_start = millis();
-  }
-
   if (diff > acc_max) {
     acc_max = d;
   }
@@ -317,6 +309,8 @@ void printDiff(int d, int cnt) {
     Serial.print(val_min);
     Serial.print(" max ");
     Serial.print(val_max);
+    Serial.print(" diff_min ");
+    Serial.print(diff_min);
     Serial.print(") cnt=");
     Serial.print(cnt);
     Serial.print(" time=");
